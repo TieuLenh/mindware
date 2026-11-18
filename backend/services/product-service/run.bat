@@ -1,0 +1,1 @@
+start "Product service" cmd /k ".\venv\Scripts\activate & set PORT=5050 & python app.py"
