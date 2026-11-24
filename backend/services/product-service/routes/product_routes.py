@@ -1,4 +1,3 @@
-
 from flask import Blueprint, request, jsonify
 
 product_routes = Blueprint(
@@ -25,7 +24,6 @@ products = [
 # GET /api/products
 @product_routes.route('/', methods=['GET'])
 def get_products():
-
     return jsonify({
         'service': 'product-service',
         'data': products
@@ -35,7 +33,6 @@ def get_products():
 # GET /api/products/:id
 @product_routes.route('/<int:product_id>', methods=['GET'])
 def get_product(product_id):
-
     product = next(
         (p for p in products if p['id'] == product_id),
         None

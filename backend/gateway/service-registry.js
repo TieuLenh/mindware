@@ -5,16 +5,20 @@ const services = {
         instances: [
             {
                 id: 'USER-01',
-                url: 'http://localhost:3001',
+                url: 'http://user-1:4001',
                 alive: true
             },
             {
                 id: 'USER-02',
-                url: 'http://localhost:3002',
+                url: 'http://user-2:4001',
                 alive: true
-            }
+            },
+            {
+                id: 'USER-03',
+                url: 'http://user-3:4001',
+                alive: true
+            },
         ],
-
         currentIndex: 0
     },
 
@@ -23,7 +27,12 @@ const services = {
         instances: [
             {
                 id: 'PRODUCT-01',
-                url: 'http://127.0.0.1:5050',
+                url: 'http://product-1:4002',
+                alive: true
+            },
+            {
+                id: 'PRODUCT-02',
+                url: 'http://product-2:4002',
                 alive: true
             }
         ],

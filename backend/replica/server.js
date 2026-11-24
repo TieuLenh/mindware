@@ -5,7 +5,7 @@ const app = express();
 
 app.use(express.json());
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 4001;
 const SERVER_ID = process.env.SERVER_ID || 'BE-01';
 
 // Health Check

@@ -5,15 +5,13 @@ function getNextInstance(service) {
         instance => instance.alive
     );
 
-    if (available.length === 0) {
+    if (!available.length) {
         return null;
     }
 
-    const index = service.currentIndex % available.length;
+    service.currentIndex = ((service.currentIndex ?? 0) + 1) % available.length;
 
-    service.currentIndex++;
-
-    return available[index];
+    return available[service.currentIndex];
 }
 
 module.exports = { getNextInstance };

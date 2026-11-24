@@ -1,0 +1,113 @@
+name: monolith-backend-stack
+
+x-common-service: &common-service
+  restart: unless-stopped
+  init: true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+networks:
+  edge_net:
+    driver: bridge
+  data_net:
+    driver: bridge
+    internal: true
+
+volumes:
+  monolith_pg_data:
+  monolith_redis_data:
+
+services:
+  # Reverse Proxy (Nginx)
+  reverse-proxy:
+    <<: *common-service
+    image: nginx:1.27-alpine
+    container_name: mono-nginx
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./nginx/monolith.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - edge_net
+    depends_on:
+      monolith-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Monolith Backend Server (1 Process / 1 Codebase xử lý toàn bộ nghiệp vụ)
+  monolith-backend:
+    <<: *common-service
+    build:
+      context: ./backend-monolith
+      dockerfile: Dockerfile
+    container_name: mono-backend
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      SERVER_PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${MONO_DB_NAME:-monolith_db}
+      DB_USER: ${MONO_DB_USER:-mono_user}
+      DB_PASSWORD: ${MONO_DB_PASSWORD:?Set MONO_DB_PASSWORD in .env}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme_redis}
+    expose:
+      - "8080"
+    # Mở port trực tiếp khi dev local nếu không đi qua Nginx:
+    # ports:
+    #   - "${MONO_APP_PORT:-8080}:8080"
+    networks:
+      - edge_net
+      - data_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  postgres:
+    <<: *common-service
+    image: postgres:16-alpine
+    container_name: mono-postgres
+    environment:
+      POSTGRES_DB: ${MONO_DB_NAME:-monolith_db}
+      POSTGRES_USER: ${MONO_DB_USER:-mono_user}
+      POSTGRES_PASSWORD: ${MONO_DB_PASSWORD:?Set MONO_DB_PASSWORD in .env}
+    volumes:
+      - monolith_pg_data:/var/lib/postgresql/data
+    networks:
+      - data_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    <<: *common-service
+    image: redis:7-alpine
+    container_name: mono-redis
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-changeme_redis}"]
+    volumes:
+      - monolith_redis_data:/data
+    networks:
+      - data_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme_redis}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

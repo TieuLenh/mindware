@@ -1,0 +1,145 @@
+services:
+  gateway:
+    build: ./gateway
+    container_name: gateway
+    ports:
+      - "${GATEWAY_PORT:-3000}:3000"
+    depends_on:
+      - user-1
+        # condition: service_healthy
+      - user-2
+        # condition: service_healthy
+      - product-1
+        # condition: service_healthy
+      - product-2
+        # condition: service_healthy
+    networks:
+      - distributed-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  user-1:
+    build: ./services/user-service
+    env_file:
+      - ./config/db.env
+    environment:
+      - PORT=4001
+      - SERVER_ID=USER-01
+      - SHOW_DATE=true
+    expose:
+      - "4001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - distributed-network
+      - data-network
+    restart: unless-stopped
+
+  user-2:
+    build: ./services/user-service
+    env_file:
+      - ./config/db.env
+    environment:
+      - PORT=4001
+      - SERVER_ID=USER-02
+    expose:
+      - "4001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - distributed-network
+      - data-network
+    restart: unless-stopped
+  
+  user-3:
+    build: ./services/user-service
+    env_file:
+      - ./config/db.env
+    environment:
+      - PORT=4001
+      - SERVER_ID=USER-03
+    expose:
+      - "4001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - distributed-network
+      - data-network
+    restart: unless-stopped
+
+  product-1:
+    build: ./services/product-service
+    env_file:
+      - ./config/db.env
+    environment:
+      - PORT=4002
+      - SERVER_ID=PRODUCT-01
+    expose:
+      - "4002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - distributed-network
+      - data-network
+    restart: unless-stopped
+
+  product-2:
+    build: ./services/product-service
+    env_file:
+      - ./config/db.env
+    environment:
+      - PORT=4002
+      - SERVER_ID=PRODUCT-02
+    expose:
+      - "4002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - distributed-network
+      - data-network
+    restart: unless-stopped
+  mysql:
+    image: mysql:8.0
+    container_name: db-mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DB}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - data-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+# =========================
+# NETWORK
+# =========================
+
+networks:
+  distributed-network:
+    driver: bridge
+  data-network:
+    driver: bridge
+
+volumes:
+  mysql_data:

@@ -1,1 +1,0 @@
-start "gateway" cmd /k "set PORT=1525 & npm run dev"

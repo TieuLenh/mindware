@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>API Gateway — Service Health Monitor</title>
+    <style>
+        :root {
+            --bg: #0b1020;
+            --surface: #12192f;
+            --surface-2: #18223f;
+            --border: rgba(148, 163, 184, 0.16);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-2: #818cf8;
+            --ok: #22c55e;
+            --ok-bg: rgba(34, 197, 94, 0.12);
+            --bad: #ef4444;
+            --bad-bg: rgba(239, 68, 68, 0.12);
+            --warn: #f59e0b;
+            --warn-bg: rgba(245, 158, 11, 0.12);
+            --radius: 14px;
+            --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background:
+                radial-gradient(circle at 15% 10%, rgba(56, 189, 248, 0.12), transparent 35%),
+                radial-gradient(circle at 85% 0%, rgba(129, 140, 248, 0.12), transparent 35%),
+                var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+            padding: 28px 18px 48px;
+        }
+
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            background: linear-gradient(135deg, rgba(18, 25, 47, 0.95), rgba(24, 34, 63, 0.85));
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            display: grid;
+            place-items: center;
+            font-weight: 800;
+            color: #061021;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .brand h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .brand p {
+            font-size: 0.875rem;
+            color: var(--muted);
+        }
+
+        .header-meta {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .gateway-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--warn);
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        .gateway-pill.online .dot {
+            background: var(--ok);
+            color: var(--ok);
+        }
+
+        .gateway-pill.offline .dot {
+            background: var(--bad);
+            color: var(--bad);
+        }
+
+        /* Summary Cards */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 18px;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+
+        .stat-value {
+            font-size: 1.65rem;
+            font-weight: 700;
+        }
+
+        .stat-value.ok {
+            color: var(--ok);
+        }
+
+        .stat-value.bad {
+            color: var(--bad);
+        }
+
+        .stat-value.sub {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 20px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 12px 16px;
+        }
+
+        .toolbar-left,
+        .toolbar-right {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .filter-btn,
+        .btn {
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            color: var(--text);
+            padding: 8px 13px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .filter-btn:hover,
+        .btn:hover {
+            border-color: rgba(56, 189, 248, 0.5);
+            background: rgba(56, 189, 248, 0.12);
+        }
+
+        .filter-btn.active {
+            background: rgba(56, 189, 248, 0.18);
+            border-color: var(--accent);
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .btn.primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #051020;
+            border: none;
+            font-weight: 700;
+        }
+
+        .btn.primary:hover {
+            opacity: 0.92;
+        }
+
+        select {
+            background: var(--surface-2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        /* Services Grid */
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .service-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .service-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .service-name {
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+
+        .service-prefix {
+            display: inline-block;
+            margin-top: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.8rem;
+            color: var(--accent);
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+
+        .badge.healthy {
+            color: var(--ok);
+            background: var(--ok-bg);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .badge.partial {
+            color: var(--warn);
+            background: var(--warn-bg);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .badge.down {
+            color: var(--bad);
+            background: var(--bad-bg);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .instances-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .instance-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: var(--surface-2);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .instance-main {
+            min-width: 0;
+        }
+
+        .instance-id {
+            font-size: 0.88rem;
+            font-weight: 600;
+            word-break: break-word;
+        }
+
+        .instance-url {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.76rem;
+            color: var(--muted);
+            word-break: break-all;
+        }
+
+        .status-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 4px 9px;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+
+        .status-tag.alive {
+            color: var(--ok);
+            background: var(--ok-bg);
+        }
+
+        .status-tag.dead {
+            color: var(--bad);
+            background: var(--bad-bg);
+        }
+
+        /* Raw JSON & Empty/Error State */
+        .empty-state,
+        .error-banner {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 22px;
+            text-align: center;
+            color: var(--muted);
+            margin-bottom: 20px;
+        }
+
+        .error-banner {
+            border-color: rgba(239, 68, 68, 0.45);
+            background: rgba(239, 68, 68, 0.08);
+            color: #fca5a5;
+            text-align: left;
+        }
+
+        details.raw-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px 18px;
+        }
+
+        details.raw-box summary {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--muted);
+            user-select: none;
+        }
+
+        pre.json-view {
+            margin-top: 12px;
+            background: #070b16;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 0.8rem;
+            overflow-x: auto;
+            color: #cbd5e1;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="brand">
+                <div class="brand-icon">GW</div>
+                <div>
+                    <h1>API Gateway Health Dashboard</h1>
+                    <p>Giám sát trạng thái Gateway &amp; các Service Instances qua <code>/gateway/health</code></p>
+                </div>
+            </div>
+
+            <div class="header-meta">
+                <div id="gatewayBadge" class="gateway-pill">
+                    <span class="dot"></span>
+                    <span id="gatewayStatusText">Đang kiểm tra...</span>
+                </div>
+            </div>
+        </header>
+
+        <section class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Tổng số Services</div>
+                <div id="statServices" class="stat-value">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Instances Hoạt động</div>
+                <div id="statAlive" class="stat-value ok">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Instances Ngừng / Lỗi</div>
+                <div id="statDead" class="stat-value bad">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Cập nhật lần cuối</div>
+                <div id="statUpdated" class="stat-value sub">—</div>
+            </div>
+        </section>
+
+        <section class="toolbar">
+            <div class="toolbar-left">
+                <button class="filter-btn active" data-filter="all">Tất cả</button>
+                <button class="filter-btn" data-filter="healthy">Đang chạy</button>
+                <button class="filter-btn" data-filter="issue">Có sự cố / Đang tắt</button>
+            </div>
+
+            <div class="toolbar-right">
+                <label for="refreshInterval" style="font-size: 0.85rem; color: var(--muted);">Tự động:</label>
+                <select id="refreshInterval">
+                    <option value="0">Tắt</option>
+                    <option value="3000">3 giây</option>
+                    <option value="5000" selected>5 giây</option>
+                    <option value="10000">10 giây</option>
+                    <option value="30000">30 giây</option>
+                </select>
+                <button id="refreshNowBtn" class="btn primary" type="button">Làm mới ngay</button>
+            </div>
+        </section>
+
+        <div id="errorBanner" class="error-banner hidden"></div>
+        <div id="servicesGrid" class="services-grid"></div>
+        <div id="emptyState" class="empty-state hidden">Không có service nào khớp với bộ lọc hiện tại.</div>
+
+        <details class="raw-box">
+            <summary>Xem dữ liệu JSON gốc từ /gateway/health</summary>
+            <pre id="rawJson" class="json-view">{}</pre>
+        </details>
+    </div>
+
+    <script>
+        const ENDPOINT = '/gateway/health';
+
+        const els = {
+            gatewayBadge: document.getElementById('gatewayBadge'),
+            gatewayStatusText: document.getElementById('gatewayStatusText'),
+            statServices: document.getElementById('statServices'),
+            statAlive: document.getElementById('statAlive'),
+            statDead: document.getElementById('statDead'),
+            statUpdated: document.getElementById('statUpdated'),
+            servicesGrid: document.getElementById('servicesGrid'),
+            emptyState: document.getElementById('emptyState'),
+            errorBanner: document.getElementById('errorBanner'),
+            rawJson: document.getElementById('rawJson'),
+            refreshNowBtn: document.getElementById('refreshNowBtn'),
+            refreshInterval: document.getElementById('refreshInterval'),
+            filterBtns: document.querySelectorAll('.filter-btn'),
+        };
+
+        let currentFilter = 'all';
+        let lastData = null;
+        let timerId = null;
+
+        function escapeHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function normalizeServices(servicesObj) {
+            if (!servicesObj || typeof servicesObj !== 'object') return [];
+
+            return Object.entries(servicesObj).map(([key, svc], index) => {
+                const instances = Array.isArray(svc?.instances) ? svc.instances : [];
+                const aliveCount = instances.filter((inst) => Boolean(inst?.alive)).length;
+                const totalCount = instances.length;
+
+                let healthState = 'down';
+                if (totalCount > 0 && aliveCount === totalCount) {
+                    healthState = 'healthy';
+                } else if (aliveCount > 0) {
+                    healthState = 'partial';
+                }
+
+                return {
+                    key,
+                    name: svc?.name || key || `Service #${index + 1}`,
+                    prefix: svc?.prefix || '',
+                    instances,
+                    aliveCount,
+                    totalCount,
+                    healthState,
+                };
+            });
+        }
+
+        function renderStats(data, serviceList) {
+            const isOk = Boolean(data && String(data.status).toUpperCase() === 'OK');
+            els.gatewayBadge.classList.toggle('online', isOk);
+            els.gatewayBadge.classList.toggle('offline', !isOk);
+            els.gatewayStatusText.textContent = isOk
+                ? `Gateway: ${data.status}`
+                : 'Gateway: Mất kết nối';
+
+            let totalAlive = 0;
+            let totalDead = 0;
+
+            for (const svc of serviceList) {
+                totalAlive += svc.aliveCount;
+                totalDead += Math.max(0, svc.totalCount - svc.aliveCount);
+            }
+
+            els.statServices.textContent = serviceList.length;
+            els.statAlive.textContent = totalAlive;
+            els.statDead.textContent = totalDead;
+            els.statUpdated.textContent = data?.timestamp || new Date().toLocaleTimeString('vi-VN');
+        }
+
+        function renderServices(serviceList) {
+            const filtered = serviceList.filter((svc) => {
+                if (currentFilter === 'healthy') return svc.healthState === 'healthy';
+                if (currentFilter === 'issue') return svc.healthState !== 'healthy';
+                return true;
+            });
+
+            els.servicesGrid.innerHTML = '';
+
+            if (filtered.length === 0) {
+                els.emptyState.classList.remove('hidden');
+                return;
+            }
+            els.emptyState.classList.add('hidden');
+
+            const fragment = document.createDocumentFragment();
+
+            for (const svc of filtered) {
+                const card = document.createElement('article');
+                card.className = 'service-card';
+
+                let badgeClass = 'down';
+                let badgeLabel = 'Ngừng hoạt động';
+                if (svc.healthState === 'healthy') {
+                    badgeClass = 'healthy';
+                    badgeLabel = `Sẵn sàng (${svc.aliveCount}/${svc.totalCount})`;
+                } else if (svc.healthState === 'partial') {
+                    badgeClass = 'partial';
+                    badgeLabel = `Một phần (${svc.aliveCount}/${svc.totalCount})`;
+                } else if (svc.totalCount > 0) {
+                    badgeLabel = `Mất kết nối (0/${svc.totalCount})`;
+                }
+
+                const instancesHtml = svc.instances.length > 0
+                    ? svc.instances.map((inst, idx) => {
+                        const alive = Boolean(inst?.alive);
+                        const instId = inst?.id || `instance-${idx + 1}`;
+                        const instUrl = inst?.url || '—';
+                        return `
+                <div class="instance-row">
+                  <div class="instance-main">
+                    <div class="instance-id">${escapeHtml(instId)}</div>
+                    <div class="instance-url">${escapeHtml(instUrl)}</div>
+                  </div>
+                  <span class="status-tag ${alive ? 'alive' : 'dead'}">
+                    ${alive ? '● ALIVE' : '● DEAD'}
+                  </span>
+                </div>
+              `;
+                    }).join('')
+                    : `<div class="instance-row"><span class="instance-url">Chưa có instance nào được đăng ký</span></div>`;
+
+                card.innerHTML = `
+          <div class="service-top">
+            <div>
+              <div class="service-name">${escapeHtml(svc.name)}</div>
+              ${svc.prefix ? `<span class="service-prefix">${escapeHtml(svc.prefix)}</span>` : ''}
+            </div>
+            <span class="badge ${badgeClass}">${escapeHtml(badgeLabel)}</span>
+          </div>
+          <div class="instances-list">
+            ${instancesHtml}
+          </div>
+        `;
+
+                fragment.appendChild(card);
+            }
+
+            els.servicesGrid.appendChild(fragment);
+        }
+
+        function showError(message) {
+            els.errorBanner.textContent = message;
+            els.errorBanner.classList.remove('hidden');
+        }
+
+        function clearError() {
+            els.errorBanner.textContent = '';
+            els.errorBanner.classList.add('hidden');
+        }
+
+        async function fetchHealth() {
+            els.refreshNowBtn.disabled = true;
+            els.refreshNowBtn.textContent = 'Đang tải...';
+
+            try {
+                const res = await fetch(ENDPOINT, { cache: 'no-store' });
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status} (${res.statusText})`);
+                }
+                const data = await res.json();
+                lastData = data;
+                clearError();
+
+                const serviceList = normalizeServices(data.services);
+                renderStats(data, serviceList);
+                renderServices(serviceList);
+                els.rawJson.textContent = JSON.stringify(data, null, 2);
+            } catch (err) {
+                els.gatewayBadge.classList.remove('online');
+                els.gatewayBadge.classList.add('offline');
+                els.gatewayStatusText.textContent = 'Gateway: Lỗi kết nối';
+                showError(`Không thể lấy dữ liệu từ ${ENDPOINT}: ${err.message}`);
+            } finally {
+                els.refreshNowBtn.disabled = false;
+                els.refreshNowBtn.textContent = 'Làm mới ngay';
+            }
+        }
+
+        function setupAutoRefresh() {
+            if (timerId) {
+                clearInterval(timerId);
+                timerId = null;
+            }
+            const ms = Number(els.refreshInterval.value);
+            if (ms > 0) {
+                timerId = setInterval(fetchHealth, ms);
+            }
+        }
+
+        els.refreshNowBtn.addEventListener('click', fetchHealth);
+        els.refreshInterval.addEventListener('change', setupAutoRefresh);
+
+        els.filterBtns.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                els.filterBtns.forEach((b) => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+                if (lastData) {
+                    renderServices(normalizeServices(lastData.services));
+                }
+            });
+        });
+
+        fetchHealth();
+        setupAutoRefresh();
+    </script>
+</body>
+
+</html>
